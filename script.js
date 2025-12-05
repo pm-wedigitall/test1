@@ -3,26 +3,36 @@ const taskInput = document.getElementById('taskInput');
 const addBtn = document.getElementById('addBtn');
 const taskList = document.getElementById('taskList');
 
-// Charger les tâches depuis localStorage au démarrage
-let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+const API_URL = 'http://localhost:3000/api/tasks';
 
-// Fonction pour sauvegarder les tâches dans localStorage
-function saveTasks() {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
+// Variable pour stocker les tâches
+let tasks = [];
+
+// Fonction pour récupérer toutes les tâches depuis l'API
+async function fetchTasks() {
+    try {
+        const response = await fetch(API_URL);
+        if (!response.ok) throw new Error('Erreur lors de la récupération des tâches');
+        tasks = await response.json();
+        renderTasks();
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Impossible de charger les tâches. Assurez-vous que le serveur est démarré.');
+    }
 }
 
 // Fonction pour afficher toutes les tâches
 function renderTasks() {
     taskList.innerHTML = '';
 
-    tasks.forEach((task, index) => {
+    tasks.forEach((task) => {
         const li = document.createElement('li');
         li.className = `task-item ${task.completed ? 'completed' : ''}`;
 
         li.innerHTML = `
-            <input type="checkbox" class="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask(${index})">
-            <span class="task-text" onclick="toggleTask(${index})">${task.text}</span>
-            <button class="delete-btn" onclick="deleteTask(${index})">Supprimer</button>
+            <input type="checkbox" class="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask(${task.id})">
+            <span class="task-text" onclick="toggleTask(${task.id})">${task.text}</span>
+            <button class="delete-btn" onclick="deleteTask(${task.id})">Supprimer</button>
         `;
 
         taskList.appendChild(li);
@@ -30,7 +40,7 @@ function renderTasks() {
 }
 
 // Fonction pour ajouter une tâche
-function addTask() {
+async function addTask() {
     const taskText = taskInput.value.trim();
 
     if (taskText === '') {
@@ -38,28 +48,62 @@ function addTask() {
         return;
     }
 
-    tasks.push({
-        text: taskText,
-        completed: false
-    });
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ text: taskText })
+        });
 
-    taskInput.value = '';
-    saveTasks();
-    renderTasks();
+        if (!response.ok) throw new Error('Erreur lors de l\'ajout de la tâche');
+
+        taskInput.value = '';
+        await fetchTasks();
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Impossible d\'ajouter la tâche.');
+    }
 }
 
 // Fonction pour basculer l'état d'une tâche
-function toggleTask(index) {
-    tasks[index].completed = !tasks[index].completed;
-    saveTasks();
-    renderTasks();
+async function toggleTask(id) {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    try {
+        const response = await fetch(`${API_URL}/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ completed: !task.completed })
+        });
+
+        if (!response.ok) throw new Error('Erreur lors de la mise à jour de la tâche');
+
+        await fetchTasks();
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Impossible de mettre à jour la tâche.');
+    }
 }
 
 // Fonction pour supprimer une tâche
-function deleteTask(index) {
-    tasks.splice(index, 1);
-    saveTasks();
-    renderTasks();
+async function deleteTask(id) {
+    try {
+        const response = await fetch(`${API_URL}/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Erreur lors de la suppression de la tâche');
+
+        await fetchTasks();
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Impossible de supprimer la tâche.');
+    }
 }
 
 // Événements
@@ -71,5 +115,5 @@ taskInput.addEventListener('keypress', (e) => {
     }
 });
 
-// Afficher les tâches au chargement
-renderTasks();
+// Charger les tâches au démarrage
+fetchTasks();
